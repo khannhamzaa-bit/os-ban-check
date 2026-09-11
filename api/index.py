@@ -6,7 +6,7 @@ app = Flask(__name__)
 DEV = "@khannhamza07"
 
 INFO_API = "https://os-info.vercel.app/get?info={uid}&region={region}"
-BAN_API  = "https://ff.garena.com/api/antihack/check_banned?lang=en&uid={uid}"
+BAN_API = "https://ff.garena.com/api/antihack/check_banned?lang=en&uid={uid}"
 
 BAN_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -15,7 +15,7 @@ BAN_HEADERS = {
     "x-requested-with": "B6FksShzIgjfrYImLpTsadjS86sddhFH",
 }
 
-# ==================== Helpers ====================
+
 def _g(d, *keys, default=None):
     cur = d
     for k in keys:
@@ -27,8 +27,8 @@ def _g(d, *keys, default=None):
             return default
     return cur if cur is not None else default
 
+
 def humanize_ago(ts):
-    """Unix timestamp → '1 month 12 days 5 hr 30 min ago'"""
     if not ts:
         return None
     try:
@@ -39,7 +39,6 @@ def humanize_ago(ts):
             return "in the future"
         if diff < 60:
             return "just now"
-
         years = diff // (365 * 86400)
         rem = diff % (365 * 86400)
         months = rem // (30 * 86400)
@@ -49,65 +48,77 @@ def humanize_ago(ts):
         hours = rem // 3600
         rem = rem % 3600
         mins = rem // 60
-
         parts = []
-        if years: parts.append(f"{years} year{'s' if years != 1 else ''}")
-        if months: parts.append(f"{months} month{'s' if months != 1 else ''}")
-        if days: parts.append(f"{days} day{'s' if days != 1 else ''}")
-        if hours: parts.append(f"{hours} hr")
-        if mins: parts.append(f"{mins} min")
-
+        if years:
+            parts.append(f"{years} year{'s' if years != 1 else ''}")
+        if months:
+            parts.append(f"{months} month{'s' if months != 1 else ''}")
+        if days:
+            parts.append(f"{days} day{'s' if days != 1 else ''}")
+        if hours:
+            parts.append(f"{hours} hr")
+        if mins:
+            parts.append(f"{mins} min")
         if not parts:
             return "just now"
         return " ".join(parts) + " ago"
     except Exception:
         return None
 
+
 def fmt_ts(ts):
-    """Unix timestamp → '12 August 2026 at 11:07:59 AM (IST)'"""
     if not ts:
         return "Unknown"
     try:
         if str(ts).isdigit():
-            return time.strftime('%d %B %Y at %I:%M:%S %p (IST)',
-                                 time.gmtime(int(ts) + 5 * 3600 + 30 * 60))
+            return time.strftime(
+                "%d %B %Y at %I:%M:%S %p (IST)",
+                time.gmtime(int(ts) + 5 * 3600 + 30 * 60),
+            )
         return str(ts)
     except Exception:
         return str(ts)
 
+
 def extract_info(data):
     try:
-        nick = (_g(data, "data", "basic", "name") or
-                _g(data, "data", "basic", "nickname") or
-                _g(data, "nickname") or
-                _g(data, "basicInfo", "nickname") or
-                _g(data, "data", "nickname") or
-                _g(data, "name") or "Unknown")
-
-        lvl = (_g(data, "data", "basic", "level") or
-               _g(data, "level") or
-               _g(data, "basicInfo", "level") or
-               _g(data, "data", "level") or 0)
-
-        reg = (_g(data, "data", "basic", "region") or
-               _g(data, "data", "region") or
-               _g(data, "region") or "Unknown")
-
-        last = (_g(data, "data", "activity", "last_login") or
-                _g(data, "data", "basic", "last_login") or
-                _g(data, "lastLoginAt") or
-                _g(data, "basicInfo", "lastLoginAt") or
-                _g(data, "data", "last_login") or "Unknown")
-
+        nick = (
+            _g(data, "data", "basic", "name")
+            or _g(data, "data", "basic", "nickname")
+            or _g(data, "nickname")
+            or _g(data, "basicInfo", "nickname")
+            or _g(data, "data", "nickname")
+            or _g(data, "name")
+            or "Unknown"
+        )
+        lvl = (
+            _g(data, "data", "basic", "level")
+            or _g(data, "level")
+            or _g(data, "basicInfo", "level")
+            or _g(data, "data", "level")
+            or 0
+        )
+        reg = (
+            _g(data, "data", "basic", "region")
+            or _g(data, "data", "region")
+            or _g(data, "region")
+            or "Unknown"
+        )
+        last = (
+            _g(data, "data", "activity", "last_login")
+            or _g(data, "data", "basic", "last_login")
+            or _g(data, "lastLoginAt")
+            or _g(data, "basicInfo", "lastLoginAt")
+            or _g(data, "data", "last_login")
+            or "Unknown"
+        )
         raw = last
         if last and str(last).isdigit():
             last = fmt_ts(last)
-
         try:
             lvl = int(lvl) if str(lvl).isdigit() else 0
         except Exception:
             lvl = 0
-
         return {
             "nickname": str(nick),
             "level": lvl,
@@ -117,9 +128,13 @@ def extract_info(data):
         }
     except Exception:
         return {
-            "nickname": "Unknown", "level": 0, "region": "Unknown",
-            "last_login": "Unknown", "last_login_raw": None,
+            "nickname": "Unknown",
+            "level": 0,
+            "region": "Unknown",
+            "last_login": "Unknown",
+            "last_login_raw": None,
         }
+
 
 def fetch_info(uid, region="ind"):
     try:
@@ -131,10 +146,15 @@ def fetch_info(uid, region="ind"):
     except Exception as e:
         return None, f"Info error: {str(e)[:60]}"
 
+
 def fetch_ban(uid):
     try:
-        r = requests.get(BAN_API.format(uid=uid), headers=BAN_HEADERS,
-                         timeout=5, verify=False)
+        r = requests.get(
+            BAN_API.format(uid=uid),
+            headers=BAN_HEADERS,
+            timeout=5,
+            verify=False,
+        )
         if r.status_code != 200:
             return None, None, f"Ban API HTTP {r.status_code}"
         bd = r.json().get("data", {}) or {}
@@ -144,52 +164,67 @@ def fetch_ban(uid):
     except Exception as e:
         return None, None, f"Ban error: {str(e)[:60]}"
 
-# ==================== ROUTES ====================
-@app.route('/')
-def home():
-    return jsonify({
-        "name": "Ban Checker API",
-        "version": "1.0",
-        "endpoints": {
-            "/bancheck?uid=X&region=ind": "Check if account is banned",
-            "/health": "Health check",
-        },
-        "example": "/bancheck?uid=7033908403&region=ind",
-        "regions": ["ind", "bd", "br", "us", "id", "vn", "sg", "th", "me", "pk", "eg", "ru", "my", "ph"],
-        "dev": DEV,
-    })
 
-@app.route('/health')
+@app.route("/")
+def home():
+    return jsonify(
+        {
+            "name": "Ban Checker API",
+            "version": "1.0",
+            "endpoints": {
+                "/bancheck?uid=X&region=ind": "Check if account is banned",
+                "/health": "Health check",
+            },
+            "example": "/bancheck?uid=7033908403&region=ind",
+            "regions": [
+                "ind", "bd", "br", "us", "id", "vn",
+                "sg", "th", "me", "pk", "eg", "ru", "my", "ph",
+            ],
+            "dev": DEV,
+        }
+    )
+
+
+@app.route("/health")
 def health():
     return jsonify({"status": "ok", "dev": DEV})
 
-@app.route('/bancheck')
+
+@app.route("/bancheck")
 def bancheck():
     try:
-        uid = (request.args.get('uid') or '').strip()
-        region = (request.args.get('region') or 'ind').strip().lower()
+        uid = (request.args.get("uid") or "").strip()
+        region = (request.args.get("region") or "ind").strip().lower()
 
         if not uid:
-            return jsonify({
-                "success": False,
-                "error": "uid required",
-                "usage": "/bancheck?uid=123456789&region=ind",
-                "dev": DEV,
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "uid required",
+                        "usage": "/bancheck?uid=123456789&region=ind",
+                        "dev": DEV,
+                    }
+                ),
+                400,
+            )
 
         if not uid.isdigit():
-            return jsonify({
-                "success": False,
-                "error": "uid must be numeric",
-                "dev": DEV,
-            }), 400
+            return (
+                jsonify(
+                    {"success": False, "error": "uid must be numeric", "dev": DEV}
+                ),
+                400,
+            )
 
         info, info_err = fetch_info(uid, region)
         is_banned, period, ban_err = fetch_ban(uid)
 
         errors = []
-        if info_err: errors.append(info_err)
-        if ban_err: errors.append(ban_err)
+        if info_err:
+            errors.append(info_err)
+        if ban_err:
+            errors.append(ban_err)
 
         if is_banned is None:
             status = "UNKNOWN"
@@ -224,16 +259,22 @@ def bancheck():
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"internal: {str(e)[:100]}",
-            "dev": DEV,
-        }), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"internal: {str(e)[:100]}",
+                    "dev": DEV,
+                }
+            ),
+            500,
+        )
 
-# ==================== Error handlers ====================
+
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({"error": "not found", "dev": DEV}), 404
+
 
 @app.errorhandler(500)
 def server_error(e):
