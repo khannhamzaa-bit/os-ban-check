@@ -29,7 +29,6 @@ def _get(d, *keys, default=None):
     return cur if cur is not None else default
 
 def humanize_ago(ts, full=True):
-    """Unix ts → '1 month 12 days 5 hr 30 min ago'."""
     if not ts:
         return None
     try:
@@ -68,7 +67,6 @@ def humanize_ago(ts, full=True):
         return None
 
 def fmt_ts(ts):
-    """Unix ts → '12 August 2026 at 11:07:59 AM (IST)'"""
     if not ts:
         return "Unknown"
     try:
@@ -80,71 +78,78 @@ def fmt_ts(ts):
         return str(ts)
 
 def extract_info_fields(data):
-    nickname = (
-        _get(data, "data", "basic", "name") or
-        _get(data, "data", "basic", "nickname") or
-        _get(data, "nickname") or
-        _get(data, "basicInfo", "nickname") or
-        _get(data, "data", "nickname") or
-        _get(data, "name") or
-        "Unknown"
-    )
-    level = (
-        _get(data, "data", "basic", "level") or
-        _get(data, "level") or
-        _get(data, "basicInfo", "level") or
-        _get(data, "data", "level") or
-        0
-    )
-    region = (
-        _get(data, "data", "basic", "region") or
-        _get(data, "data", "region") or
-        _get(data, "region") or
-        _get(data, "basicInfo", "region") or
-        "Unknown"
-    )
-    last_login = (
-        _get(data, "data", "activity", "last_login") or
-        _get(data, "data", "basic", "last_login") or
-        _get(data, "lastLoginAt") or
-        _get(data, "basicInfo", "lastLoginAt") or
-        _get(data, "data", "last_login") or
-        "Unknown"
-    )
-
-    last_login_raw = last_login
-
-    if last_login and str(last_login).isdigit():
-        last_login = fmt_ts(last_login)
-    elif last_login:
-        last_login = str(last_login)
-
     try:
-        level = int(level) if str(level).isdigit() else 0
-    except Exception:
-        level = 0
+        nickname = (
+            _get(data, "data", "basic", "name") or
+            _get(data, "data", "basic", "nickname") or
+            _get(data, "nickname") or
+            _get(data, "basicInfo", "nickname") or
+            _get(data, "data", "nickname") or
+            _get(data, "name") or
+            "Unknown"
+        )
+        level = (
+            _get(data, "data", "basic", "level") or
+            _get(data, "level") or
+            _get(data, "basicInfo", "level") or
+            _get(data, "data", "level") or
+            0
+        )
+        region = (
+            _get(data, "data", "basic", "region") or
+            _get(data, "data", "region") or
+            _get(data, "region") or
+            _get(data, "basicInfo", "region") or
+            "Unknown"
+        )
+        last_login = (
+            _get(data, "data", "activity", "last_login") or
+            _get(data, "data", "basic", "last_login") or
+            _get(data, "lastLoginAt") or
+            _get(data, "basicInfo", "lastLoginAt") or
+            _get(data, "data", "last_login") or
+            "Unknown"
+        )
 
-    return {
-        "nickname": str(nickname),
-        "level": level,
-        "region": str(region),
-        "last_login": str(last_login),
-        "last_login_raw": last_login_raw,
-    }
+        last_login_raw = last_login
+
+        if last_login and str(last_login).isdigit():
+            last_login = fmt_ts(last_login)
+        elif last_login:
+            last_login = str(last_login)
+
+        try:
+            level = int(level) if str(level).isdigit() else 0
+        except Exception:
+            level = 0
+
+        return {
+            "nickname": str(nickname),
+            "level": level,
+            "region": str(region),
+            "last_login": str(last_login),
+            "last_login_raw": last_login_raw,
+        }
+    except Exception:
+        return {
+            "nickname": "Unknown", "level": 0, "region": "Unknown",
+            "last_login": "Unknown", "last_login_raw": None,
+        }
 
 def fetch_info(uid, region="ind"):
     try:
         url = INFO_API.format(uid=uid, region=region.lower())
-        r = requests.get(url, timeout=15, verify=False)
+        r = requests.get(url, timeout=6, verify=False)
         if r.status_code != 200:
             return None, f"Info API HTTP {r.status_code}"
         return extract_info_fields(r.json()), None
     except Exception as e:
-        return None, f"Info error: {str(e)[:80]}"
+        return None, f"Info error: {str(e)[:60]}"
 
 def fetch_ban(uid):
     try:
-        r = requests.get(BAN_API.format(uid=uid), headers=BAN_HEADERS, timeout=10, verify=False)
+        r = requests.get(BAN_API.format(uid=uid), headers=BAN_HEADERS,
+                         timeout=5, verify=False)
         if r.status_code != 200:
             return None, None, f"Ban API HTTP {r.status_code}"
         bd = r.json().get("data", {}) or {}
@@ -152,72 +157,84 @@ def fetch_ban(uid):
         period = bd.get("period", 0) if is_banned else 0
         return is_banned, period, None
     except Exception as e:
-        return None, None, f"Ban error: {str(e)[:80]}"
+        return None, None, f"Ban error: {str(e)[:60]}"
 
 # ==================== ROUTES ====================
 @app.route('/bancheck', methods=['GET'])
 def bancheck():
-    uid = (request.args.get('uid') or request.args.get('player_id') or '').strip()
-    region = (request.args.get('region') or 'ind').strip().lower()
+    try:
+        uid = (request.args.get('uid') or request.args.get('player_id') or '').strip()
+        region = (request.args.get('region') or 'ind').strip().lower()
 
-    if not uid:
+        if not uid:
+            return jsonify({
+                "success": False,
+                "error": "uid required",
+                "usage": "/bancheck?uid=123456789&region=ind",
+                "dev": DEV,
+            }), 400
+
+        if not uid.isdigit():
+            return jsonify({
+                "success": False,
+                "error": "uid must be numeric",
+                "dev": DEV,
+            }), 400
+
+        info, info_err = fetch_info(uid, region)
+        is_banned, period, ban_err = fetch_ban(uid)
+
+        errors = []
+        if info_err: errors.append(info_err)
+        if ban_err: errors.append(ban_err)
+
+        if is_banned is None:
+            status = "UNKNOWN"
+        elif is_banned:
+            status = "BANNED"
+        else:
+            status = "NOT BANNED"
+
+        last_login_ago = None
+        if info and info.get("last_login_raw"):
+            last_login_ago = humanize_ago(info["last_login_raw"])
+
+        result = {
+            "success": True,
+            "nickname": info["nickname"] if info else "Unknown",
+            "uid": uid,
+            "account_level": info["level"] if info else 0,
+            "region": info["region"] if info else region.upper(),
+            "last_login": info["last_login"] if info else "Unknown",
+            "last_login_ago": last_login_ago,
+            "status": status,
+            "is_banned": bool(is_banned) if is_banned is not None else False,
+            "ban_period": period if period else 0,
+            "dev": DEV,
+            "error": " | ".join(errors) if errors else None,
+        }
+
+        if is_banned and info:
+            result["banned_since"] = info["last_login"]
+            result["banned_since_ago"] = last_login_ago
+            result["banned_duration"] = humanize_ago(info["last_login_raw"], full=False)
+
+        return jsonify(result)
+    except Exception as e:
         return jsonify({
             "success": False,
-            "error": "uid required",
-            "usage": "/bancheck?uid=123456789&region=ind",
+            "error": f"internal error: {str(e)[:80]}",
             "dev": DEV,
-        }), 400
-
-    if not uid.isdigit():
-        return jsonify({
-            "success": False,
-            "error": "uid must be numeric",
-            "dev": DEV,
-        }), 400
-
-    info, info_err = fetch_info(uid, region)
-    is_banned, period, ban_err = fetch_ban(uid)
-
-    errors = []
-    if info_err: errors.append(info_err)
-    if ban_err: errors.append(ban_err)
-
-    if is_banned is None:
-        status = "UNKNOWN"
-    elif is_banned:
-        status = "BANNED"
-    else:
-        status = "NOT BANNED"
-
-    last_login_ago = None
-    if info and info.get("last_login_raw"):
-        last_login_ago = humanize_ago(info["last_login_raw"])
-
-    result = {
-        "success": True,
-        "nickname": info["nickname"] if info else "Unknown",
-        "uid": uid,
-        "account_level": info["level"] if info else 0,
-        "region": info["region"] if info else region.upper(),
-        "last_login": info["last_login"] if info else "Unknown",
-        "last_login_ago": last_login_ago,
-        "status": status,
-        "is_banned": bool(is_banned) if is_banned is not None else False,
-        "ban_period": period if period else 0,
-        "dev": DEV,
-        "error": " | ".join(errors) if errors else None,
-    }
-
-    if is_banned and info:
-        result["banned_since"] = info["last_login"]
-        result["banned_since_ago"] = last_login_ago
-        result["banned_duration"] = humanize_ago(info["last_login_raw"], full=False)
-
-    return jsonify(result)
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok", "dev": DEV})
+
+@app.route('/test', methods=['GET'])
+def test():
+    """Simple test — no external calls."""
+    return jsonify({"status": "alive", "dev": DEV})
 
 @app.route('/', methods=['GET'])
 def home():
@@ -227,6 +244,7 @@ def home():
         "endpoints": {
             "/bancheck?uid=X&region=ind": "Check if account is banned",
             "/health": "Health check",
+            "/test": "Simple test",
         },
         "example": "/bancheck?uid=7033908403&region=ind",
         "regions": ["ind", "bd", "br", "us", "id", "vn", "sg", "th", "me", "pk", "eg", "ru", "my", "ph"],
@@ -243,3 +261,4 @@ def server_error(e):
 
 # Vercel handler
 handler = app
+app = app
